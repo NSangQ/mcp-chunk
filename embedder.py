@@ -1,5 +1,7 @@
 import os
 from typing import List, Dict
+import json
+import argparse
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -113,6 +115,16 @@ class CodeEmbedder:
                         self.embed_and_store_chunks(chunks, metadata)
 
 def main():
+    # 커맨드 라인 인자 파싱
+    parser = argparse.ArgumentParser(description='C++ 코드를 청킹하고 임베딩합니다.')
+    parser.add_argument('--project-dir', type=str, help='프로젝트 디렉토리 경로')
+    parser.add_argument('--chunk-size', type=int, default=1000, help='각 청크의 최대 크기 (기본값: 1000)')
+    parser.add_argument('--chunk-overlap', type=int, default=200, help='청크 간 중복 크기 (기본값: 200)')
+    parser.add_argument('--db-dir', type=str, default='code_chunks_db', help='Chroma DB 저장 디렉토리 (기본값: code_chunks_db)')
+    parser.add_argument('--single-file', type=str, help='단일 파일 처리 (확장자 제외)')
+    
+    args = parser.parse_args()
+
     # 환경 변수 확인
     if not os.getenv("OPENAI_API_KEY"):
         print("Error: OPENAI_API_KEY가 설정되지 않았습니다.")
@@ -120,11 +132,33 @@ def main():
         return
 
     # CodeEmbedder 인스턴스 생성
-    embedder = CodeEmbedder()
+    embedder = CodeEmbedder(persist_directory=args.db_dir)
 
-    # 예제 파일 임베딩
-    embedder.embed_cpp_file("student")
-    print("student.cpp 파일의 임베딩이 완료되었습니다.")
+    if args.project_dir:
+        # 프로젝트 전체 처리
+        print(f"프로젝트 디렉토리 '{args.project_dir}'의 코드를 임베딩합니다...")
+        embedder.embed_project(
+            args.project_dir,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap
+        )
+        print(f"프로젝트 임베딩이 완료되었습니다. (저장 위치: {args.db_dir})")
+    
+    elif args.single_file:
+        # 단일 파일 처리
+        print(f"파일 '{args.single_file}'을 임베딩합니다...")
+        embedder.embed_cpp_file(
+            args.single_file,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap
+        )
+        print(f"파일 임베딩이 완료되었습니다. (저장 위치: {args.db_dir})")
+    
+    else:
+        # 기본값: student.cpp 예제 파일 처리
+        print("예제 파일 'student.cpp'를 임베딩합니다...")
+        embedder.embed_cpp_file("student")
+        print(f"예제 파일 임베딩이 완료되었습니다. (저장 위치: {args.db_dir})")
 
 if __name__ == "__main__":
     main() 
